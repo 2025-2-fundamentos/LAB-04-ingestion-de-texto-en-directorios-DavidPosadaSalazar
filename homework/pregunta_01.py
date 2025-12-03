@@ -4,9 +4,71 @@
 """
 Escriba el codigo que ejecute la accion solicitada en cada pregunta.
 """
-
+import os
+import zipfile
+from pathlib import Path
 
 def pregunta_01():
+    try:
+        import pandas as pd
+    except Exception:
+        raise
+
+    repo_root = Path(__file__).resolve().parents[1]
+    zip_file = repo_root / "files" / "input.zip"
+    output_dir = repo_root / "files" / "output"
+    input_dir = repo_root / "input"
+
+    if not zip_file.exists():
+        raise FileNotFoundError(f"No se encontró el archivo: {zip_file}")
+
+    with zipfile.ZipFile(zip_file, "r") as zf:
+        zf.extractall(repo_root)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    def build_dataset(split: str) -> "pd.DataFrame":
+        """
+        Lee los archivos de texto dentro de input/{split}/<categoria>/
+        y construye un DataFrame con columnas:
+            - phrase: texto de la frase
+            - target: sentimiento (carpeta donde estaba el archivo)
+        """
+        split_path = input_dir / split
+        if not split_path.exists():
+            return pd.DataFrame(columns=["phrase", "target"])
+
+        rows = []
+
+        categories = sorted(
+            [d.name for d in split_path.iterdir() if d.is_dir()]
+        )
+
+        for category in categories:
+            category_path = split_path / category
+
+            for text_file in sorted(category_path.glob("*.txt")):
+                
+                try:
+                    content = text_file.read_text(encoding="utf-8").strip()
+                except Exception:
+                    content = text_file.read_text(encoding="latin-1").strip()
+
+                content = " ".join(content.splitlines())
+
+                rows.append({
+                    "phrase": content,
+                    "target": category
+                })
+
+        return pd.DataFrame(rows, columns=["phrase", "target"])
+
+    train_df = build_dataset("train")
+    test_df = build_dataset("test")
+
+    train_df.to_csv(output_dir / "train_dataset.csv", index=False)
+    test_df.to_csv(output_dir / "test_dataset.csv", index=False)
+
     """
     La información requerida para este laboratio esta almacenada en el
     archivo "files/input.zip" ubicado en la carpeta raíz.
